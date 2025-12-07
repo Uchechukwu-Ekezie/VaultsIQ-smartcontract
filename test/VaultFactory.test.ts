@@ -315,5 +315,18 @@ describe("VaultFactory", function () {
       expect(bio.length).to.equal(30);
     });
   });
+
+  describe("Reverse Lookup", function () {
+    it("Should get address by username", async function () {
+      await vaultFactory.connect(user1).registerUser("alice", "User");
+      const address = await vaultFactory.getAddressByUsername("alice");
+      expect(address).to.equal(user1.address);
+    });
+
+    it("Should return zero address for non-existent username", async function () {
+      const address = await vaultFactory.getAddressByUsername("nonexistent");
+      expect(address).to.equal(ethers.ZeroAddress);
+    });
+  });
 });
 
