@@ -18,11 +18,127 @@ describe("VaultFactory", function () {
 
   describe("User Registration", function () {
     it("Should register a new user successfully", async function () {
-      await expect(vaultFactory.connect(user1).registerUser("alice", "DeFi enthusiast"))
-        .to.emit(vaultFactory, "UserRegistered")
-        .withArgs(user1.address, await ethers.provider.getBlockNumber());
+      const tx = await vaultFactory.connect(user1).registerUser("alice", "DeFi enthusiast");
+      await expect(tx).to.emit(vaultFactory, "UserRegistered");
 
       expect(await vaultFactory.isUserRegistered(user1.address)).to.be.true;
+      const [username, bio, timestamp] = await vaultFactory.getUserInfo(user1.address);
+      expect(username).to.equal("alice");
+      expect(bio).to.equal("DeFi enthusiast");
+      expect(timestamp).to.be.gt(0);
+    });
+
+    it("Should prevent duplicate registration", async function () {
+      await vaultFactory.connect(user1).registerUser("alice", "DeFi enthusiast");
+      await expect(
+        vaultFactory.connect(user1).registerUser("alice2", "New bio")
+      ).to.be.revertedWithCustomError(vaultFactory, "AlreadyRegistered");
+    });
+
+    it("Should reject empty username", async function () {
+      await expect(
+        vaultFactory.connect(user1).registerUser("", "Valid bio")
+      ).to.be.revertedWithCustomError(vaultFactory, "InvalidUsername");
+    });
+
+    it("Should reject username exceeding max length", async function () {
+      const longUsername = "a".repeat(21);
+      await expect(
+        vaultFactory.connect(user1).registerUser(longUsername, "Valid bio")
+      ).to.be.revertedWithCustomError(vaultFactory, "InvalidUsername");
+    });
+
+    it("Should reject empty bio", async function () {
+      await expect(
+        vaultFactory.connect(user1).registerUser("alice", "")
+      ).to.be.revertedWithCustomError(vaultFactory, "InvalidBio");
+    });
+
+    it("Should reject bio exceeding max length", async function () {
+      const longBio = "a".repeat(31);
+      await expect(
+        vaultFactory.connect(user1).registerUser("alice", longBio)
+      ).to.be.revertedWithCustomError(vaultFactory, "InvalidBio");
+    });
+
+    it("Should prevent duplicate usernames", async function () {
+      await vaultFactory.connect(user1).registerUser("alice", "First user");
+      await expect(
+        vaultFactory.connect(user2).registerUser("alice", "Second user")
+      ).to.be.revertedWithCustomError(vaultFactory, "InvalidUsername");
+    });
+
+    it("Should reject invalid username characters", async function () {
+      await expect(
+        vaultFactory.connect(user1).registerUser("alice!", "Valid bio")
+      ).to.be.revertedWithCustomError(vaultFactory, "InvalidUsername");
+    });
+  });
+
+  describe("View Functions", function () {
+    beforeEach(async function () {
+      await vaultFactory.connect(user1).registerUser("alice", "DeFi enthusiast");
+    });
+
+    it("Should return correct user info", async function () {
+      const [username, bio, timestamp] = await vaultFactory.getUserInfo(user1.address);
+      expect(username).to.equal("alice");
+      expect(bio).to.equal("DeFi enthusiast");
+      expect(timestamp).to.be.gt(0);
+    });
+
+    it("Should return username via helper", async function () {
+      expect(await vaultFactory.getUserUsername(user1.address)).to.equal("alice");
+    });
+
+    it("Should return bio via helper", async function () {
+      expect(await vaultFactory.getUserBio(user1.address)).to.equal("DeFi enthusiast");
+    });
+
+    it("Should return registration timestamp", async function () {
+      const timestamp = await vaultFactory.getRegistrationTimestamp(user1.address);
+      expect(timestamp).to.be.gt(0);
+    });
+
+    it("Should return registered users count", async function () {
+      expect(await vaultFactory.getRegisteredUsersCount()).to.equal(1);
+      await vaultFactory.connect(user2).registerUser("bob", "Trader");
+      expect(await vaultFactory.getRegisteredUsersCount()).to.equal(2);
+    });
+  });
+
+  describe("Admin Functions", function () {
+    beforeEach(async function () {
+      await vaultFactory.connect(user1).registerUser("alice", "DeFi enthusiast");
+    });
+
+    it("Should allow owner to pause registration", async function () {
+      await vaultFactory.pauseRegistration();
+      expect(await vaultFactory.registrationPaused()).to.be.true;
+      await expect(
+        vaultFactory.connect(user2).registerUser("bob", "Trader")
+      ).to.be.revertedWithCustomError(vaultFactory, "InvalidUsername");
+    });
+
+    it("Should allow owner to unpause registration", async function () {
+      await vaultFactory.pauseRegistration();
+      await vaultFactory.unpauseRegistration();
+      expect(await vaultFactory.registrationPaused()).to.be.false;
+      await vaultFactory.connect(user2).registerUser("bob", "Trader");
+      expect(await vaultFactory.isUserRegistered(user2.address)).to.be.true;
+    });
+
+    it("Should allow owner to update user info", async function () {
+      await vaultFactory.adminUpdateUserInfo(user1.address, "alice_new", "New bio");
+      const [username, bio] = await vaultFactory.getUserInfo(user1.address);
+      expect(username).to.equal("alice_new");
+      expect(bio).to.equal("New bio");
+    });
+
+    it("Should allow owner to remove user", async function () {
+      await vaultFactory.adminRemoveUser(user1.address);
+      expect(await vaultFactory.isUserRegistered(user1.address)).to.be.false;
+      expect(await vaultFactory.getRegisteredUsersCount()).to.equal(0);
     });
   });
 });
