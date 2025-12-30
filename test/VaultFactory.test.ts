@@ -300,5 +300,20 @@ describe("VaultFactory", function () {
       expect(await vaultFactory.isUsernameAvailable("available")).to.be.true;
     });
   });
+
+  describe("Maximum Length Edge Cases", function () {
+    it("Should accept username at max length", async function () {
+      const maxUsername = "a".repeat(20);
+      await vaultFactory.connect(user1).registerUser(maxUsername, "Valid bio");
+      expect(await vaultFactory.isUserRegistered(user1.address)).to.be.true;
+    });
+
+    it("Should accept bio at max length", async function () {
+      const maxBio = "a".repeat(30);
+      await vaultFactory.connect(user1).registerUser("alice", maxBio);
+      const [, bio] = await vaultFactory.getUserInfo(user1.address);
+      expect(bio.length).to.equal(30);
+    });
+  });
 });
 
