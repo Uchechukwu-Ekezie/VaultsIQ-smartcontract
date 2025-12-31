@@ -83,6 +83,7 @@ contract VaultFactory is Ownable, ReentrancyGuard {
         }
 
         // Validate username format (alphanumeric and underscores only)
+        // This prevents injection attacks and ensures clean usernames
         for (uint256 i = 0; i < usernameBytes.length; i++) {
             bytes1 char = usernameBytes[i];
             if (!((char >= 0x30 && char <= 0x39) || // 0-9
@@ -91,6 +92,19 @@ contract VaultFactory is Ownable, ReentrancyGuard {
                   (char == 0x5F))) {                // _
                 revert InvalidUsername("Username contains invalid characters");
             }
+        }
+
+        // Additional validation: username cannot be only numbers
+        bool hasLetter = false;
+        for (uint256 i = 0; i < usernameBytes.length; i++) {
+            bytes1 char = usernameBytes[i];
+            if ((char >= 0x41 && char <= 0x5A) || (char >= 0x61 && char <= 0x7A)) {
+                hasLetter = true;
+                break;
+            }
+        }
+        if (!hasLetter) {
+            revert InvalidUsername("Username must contain at least one letter");
         }
 
         // Validate bio
